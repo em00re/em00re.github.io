@@ -1,0 +1,118 @@
+---
+title: "alternative_schools_mapped"
+author: "Elizabeth Moore"
+date: "11/23/2020"
+output: html_document
+---
+
+```{r setup, echo=FALSE}
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(stringr))
+```
+
+
+```{r a, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+chronic_absenteeism_2017_cleaned <- read_csv("~/Downloads/semester_project/chronic_absenteeism_2017_cleaned-csv.csv") %>% rename(designation = designation_type,school_name = name,district_name = LEA.x,sex = Sex,black = Black,two_plus = `Two or more races`, swd = `SWD (IDEA-Eligible)`,total = Total) %>% select(agency_code,designation,school_name,school_type,district_name,sex,black,two_plus,swd,total)
+
+student_demographic_2017_cleaned <- read_csv("~/Downloads/semester_project/student_demographic_2017_cleaned2.csv")%>% rename(designation = designation_type,school_name = name,district_name = LEA.x,black = Black,two_plus = `Two or more races`, swd = `SWD (IDEA-Eligible)`,total = Total) %>% select(agency_code,designation,school_name,school_type,district_name,black,two_plus,swd,total)
+
+```
+
+
+```{r b, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+student_demographic_2017_cleaned$swd <- as.numeric(student_demographic_2017_cleaned$swd)
+
+ student_demographic_2017_cleaned %>% mutate(black_percentage = black/total,two_plus_percentage = two_plus/total,swd_percentage = swd/total) %>% group_by(school_type) %>% summarise(mean_black_percentage = mean(black_percentage,na.rm = TRUE),mean_two_plus_percentage = mean(two_plus_percentage,na.rm = TRUE),mean_swd_percentage = mean(swd_percentage,na.rm = TRUE))
+
+
+#Checking how many schools were excluded
+student_demographic_2017_cleaned %>% filter(!is.na(total)) %>% group_by(school_type) %>% summarise(total = n())
+student_demographic_2017_cleaned %>% filter(is.na(total)) %>% group_by(school_type) %>% summarise(total = n())
+
+#Findings: Black students make up 32.38 percent of students at Alternative Education schools, but only 21.1 percent at regular schools. Disabled students make up 13.9 percent at regular schools and 27.6 percent at alternative schools. THis analysis included 1863 regular schools and 61 alternative schools. it excluded charter schools and special education schools. It excluded 467 regular schools and 13 alternative schools that could not be added due to data problems. The ratios for both of these samples are similar 13/467 = .027 and  61/1863 = .0327 percent
+```
+
+
+```{r c, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+#Start with counts disabled students 
+disabled_counts_chronic_absenteeism <- chronic_absenteeism_2017_cleaned %>% select(school_name,school_type,district_name,sex,swd) %>% group_by(sex,school_name) %>% summarise(swd = sum(swd)) %>% pivot_wider(names_from = sex,values_from = swd) %>% mutate(total_disabled_chronically_absent = `F` + `M`) 
+
+#Making percents for disabled students.  
+disabled_pcts_chronic_absenteeism <- left_join(disabled_counts_chronic_absenteeism,student_demographic_2017_cleaned,by = "school_name") %>% mutate(pct_disabled_absent = total_disabled_chronically_absent/swd) %>% filter(pct_disabled_absent <= 1.00)
+
+
+#Making counts for black students.
+black_counts_chronic_absenteeism <- chronic_absenteeism_2017_cleaned %>% select(school_name,school_type,district_name,sex,black) %>% group_by(sex,school_name) %>% summarise(black = sum(black)) %>% pivot_wider(names_from = sex,values_from = black) %>% mutate(total_black_chronically_absent = `F` + `M`)
+
+#Making percents for black students
+black_pcts_chronic_absenteeism <- left_join(black_counts_chronic_absenteeism,student_demographic_2017_cleaned,by = "school_name") %>% mutate(pct_black_absent = total_black_chronically_absent/black) %>% filter(pct_black_absent <= 1.00) 
+
+#Making counts for all students
+all_chronically_absent <- chronic_absenteeism_2017_cleaned %>% select(school_name,school_type,district_name,sex,total) %>% group_by(sex,school_name) %>% summarise(total = sum(total)) %>% pivot_wider(names_from = sex,values_from = total) %>% mutate(total_chronically_absent = `F` + `M`) 
+
+#Making percents for all students. 
+all_pcts_chronic_absenteeism <- left_join(all_chronically_absent,student_demographic_2017_cleaned,by = "school_name") %>% mutate(pct_total_absent = total_chronically_absent/total) %>% filter(pct_total_absent <= 1.00)
+
+
+```
+
+
+```{r d, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+ black_pcts_chronic_absenteeism %>% group_by(school_type) %>% summarise(mean_black_pct_absent = mean(pct_black_absent)) 
+
+ disabled_pcts_chronic_absenteeism %>% group_by(school_type) %>% summarise(mean_disabled_pct_absent = mean(pct_disabled_absent))
+
+ all_pcts_chronic_absenteeism %>% group_by(school_type) %>% summarise(mean_all_pct_absent = mean(pct_total_absent))
+
+#Checking how many schools were included
+all_pcts_chronic_absenteeism%>% filter(!is.na(pct_total_absent)) %>% group_by(school_type) %>% summarise(pct_total_absent = n())
+
+```
+
+```{r e, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+black_pcts_chronic_absenteeism %>% filter(school_type == "Alternative Education") %>% arrange(desc(pct_black_absent))
+
+disabled_pcts_chronic_absenteeism %>% filter(school_type == "Alternative Education") %>% arrange(desc(pct_disabled_absent))
+
+all_pcts_chronic_absenteeism %>% filter(school_type == "Alternative Education") %>% arrange(desc(pct_total_absent))
+```
+
+```{r f, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+student_demographic_2017_cleaned %>% mutate(black_percentage = black/total,two_plus_percentage = two_plus/total,swd_percentage = swd/total) %>% filter(swd_percentage <= 1.0,school_type == "Alternative Education") %>% arrange(desc(swd_percentage))
+
+student_demographic_2017_cleaned %>% mutate(black_percentage = black/total,two_plus_percentage = two_plus/total,swd_percentage = swd/total) %>% filter(swd_percentage <= 1.0,school_type == "Alternative Education") %>% arrange(desc(black_percentage))
+```
+
+
+```{r g, echo=FALSE,warning=FALSE, message=FALSE, results='hide'}
+#Loading the data in.
+alternative_school_characteristics <- read_csv("alternative_school_characteristics.csv")
+
+alternative_school_characteristics <- alternative_school_characteristics[1:7]
+
+#Checking out the mean for alternative schools in most of the columns. 
+mean(alternative_school_characteristics$Percent_economically_disadvantaged,na.rm = TRUE)
+mean(alternative_school_characteristics$`percent_teachers_need improvement`,na.rm = TRUE)
+mean(alternative_school_characteristics$suspension_rates_per_1000,na.rm = TRUE)
+mean(alternative_school_characteristics$ppf,na.rm = TRUE)
+mean(alternative_school_characteristics$percentage_funds_used_on_employee_benefits_and_salaries,na.rm = TRUE)
+mean(alternative_school_characteristics$Percentage_used_on_supplies_and_instructiona_equipment,na.rm = TRUE)
+
+
+#Looking specifically at per pupil funding & percentage used on supplies and instructional equipment. 
+alternative_school_characteristics %>% arrange(desc(ppf))
+
+alternative_school_characteristics %>% arrange(Percentage_used_on_supplies_and_instructiona_equipment)
+```
+
+
+```{r comparecodes_graph, echo=FALSE,warning=FALSE,message=FALSE}
+alternative_school_characteristics <- alternative_school_characteristics %>% mutate(`Funds Used on Supplies & Instructional Equipment (%)`= Percentage_used_on_supplies_and_instructiona_equipment*100) %>% rename(`School Name`= school_name,`Total Funding per Pupil` = ppf)
+
+#install.packages("plotly")
+library(plotly)
+
+map <- ggplot(data = alternative_school_characteristics,aes(x =`Total Funding per Pupil`,y = `Funds Used on Supplies & Instructional Equipment (%)`, color = `School Name`)) +  geom_point(position = "jitter") + theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1.3, vjust = 1.2),legend.position = "none") +  labs(x = "Total Funding Per Pupil($)",y = "Funds Used on Supplies & Instructional Equipment (%)", title = "Funding & Usage at North Carolina Alternative Schools")
+
+ggplotly(map)
+```
